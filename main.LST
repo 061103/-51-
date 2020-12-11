@@ -1,0 +1,341 @@
+C51 COMPILER V9.01   MAIN                                                                  12/10/2020 23:39:38 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: d:\Keil\C51\BIN\C51.EXE main.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include "STC12C5A.h"
+   2          #include "DS18B20.h"
+   3          #include "1DS18B20.h"
+   4          #include "pwm.h"
+   5          #include "pt6312.h"
+   6          #include "ir.h"
+   7          #include "SG90.h"
+   8          #include "eeprom.h"
+   9          #include "intrins.h"
+  10          sbit IN_OFF=P3^0;
+  11          sbit K1=P2^4;
+  12          sbit K2=P2^5;
+  13          sbit ledtest=P3^5;
+  14          sbit Beep=P0^2 ;//beep
+  15          unsigned int led_temp(unsigned int led);
+  16          unsigned int lcd_temp(unsigned int lcd);
+  17          void vfd_display_4(unsigned int four);
+  18          void ircodedisp();
+  19          void PWMled();
+  20          void proir_data();
+  21          void Bp();
+  22          void keypro();
+  23          void fin_result(unsigned int fin);
+  24          //定义温度全局变量
+  25          unsigned char one,s,a;
+  26          unsigned int fin;
+  27          void delayS500ms()   //误差 -0.000000000028us
+  28          {
+  29   1          unsigned char a,b,c;
+  30   1          for(c=254;c>0;c--)
+  31   1              for(b=96;b>0;b--)
+  32   1                  for(a=60;a>0;a--);
+  33   1      }
+  34          //延时子函数
+  35          void delay(unsigned int time)
+  36          {
+  37   1              while(time--);
+  38   1      }
+  39          void main()
+  40          {  
+  41   1              unsigned int wds,wds1;
+  42   1              P1M1=0x00;
+  43   1          P1M0=0x20;
+  44   1              EX1init();            //初始化外部中断1
+  45   1          TIM0init();           //初始化定时器0
+  46   1              IN_OFF=1; /*免复位下载*/
+  47   1              VFD_Init();/*PT6312初始化函数*/
+  48   1          init_PWM();/*PWM初始化函数*/
+  49   1              PWM1_set(255); /*显示屏风扇*/ 
+  50   1              PWM0_set(255); /*电源风扇*/
+  51   1          test_display();/*VFD全亮*/
+  52   1              delayS500ms(); /*延时0.5秒*/
+  53   1              one=Byte_read(0x0000);
+  54   1              high=one*10;
+  55   1              vfd_display_4(high);
+C51 COMPILER V9.01   MAIN                                                                  12/10/2020 23:39:38 PAGE 2   
+
+  56   1              SG90PRO();
+  57   1              while(1)
+  58   1              { 
+  59   2                       if(IN_OFF==0||IN_OFF!=1) IAP_CONTR = 0x60;      //复位到IAP
+  60   2                       if(K1==1&&K2==1){
+  61   3                               ledtest=0;                                              //工作状态指示灯
+  62   3                               wds=led_temp(get_temper());             //LED温度获取并显示
+  63   3                               wds1=lcd_temp(get_temper1());   //获取液晶屏温度并显示
+  64   3                               ledtest=1;                                              //工作状态指示灯          
+  65   3                               if(irok) Ircordpro();               //如果接收好了进行红外处理
+  66   3                               proir_data();                                       //处理垂直梯形校正
+  67   3                               }else keypro();                                         //按键处理                               
+  68   2                       /*PWM0_setLED风扇150开始转*/
+  69   2                       if(wds>550) {
+  70   3                              while(wds>550){
+  71   4                              PWM0_set(1);
+  72   4                              Bp();
+  73   4                              wds=led_temp(get_temper());
+  74   4                              }
+  75   3                       }
+  76   2                       if(wds>500){
+  77   3                               unsigned int ledwendu_agin;
+  78   3                               ledwendu_agin=led_temp(get_temper());   //再次获取LED温度值与之前获取的LED温度值进行比较
+  79   3                               if(ledwendu_agin>wds){                                  //如果温度持续上升
+  80   4                               s=0;
+  81   4                               a++;
+  82   4                               if(a==1) {fin=95;fin_result(fin);PWM0_set(fin);}
+  83   4                               if(a==2) {fin=94;fin_result(fin);PWM0_set(fin);}
+  84   4                               if(a==3) {fin=93;fin_result(fin);PWM0_set(fin);}
+  85   4                               if(a==4) {fin=92;fin_result(fin);PWM0_set(fin);}
+  86   4                               if(a==5) {fin=91;fin_result(fin);PWM0_set(fin);}
+  87   4                               if(a==6) {fin=90;fin_result(fin);PWM0_set(fin);}
+  88   4                               }else if(ledwendu_agin<wds){                    //否则如果温度在慢慢下降
+  89   4                                                      s++;
+  90   4                                                      a=0;
+  91   4                                                      if(s==1) {fin=89;fin_result(fin);PWM0_set(fin);}
+  92   4                                                      if(s==2) {fin=90;fin_result(fin);PWM0_set(fin);}
+  93   4                                                      if(s==3) {fin=91;fin_result(fin);PWM0_set(fin);}
+  94   4                                                      if(s==4) {fin=92;fin_result(fin);PWM0_set(fin);}
+  95   4                                                      if(s==5) {fin=93;fin_result(fin);PWM0_set(fin);}
+  96   4                                                      if(s==6) {fin=94;fin_result(fin);PWM0_set(fin);}
+  97   4                                                      if(s==7) {fin=95;fin_result(fin);PWM0_set(fin);}
+  98   4                                              }
+  99   3                                      }else{
+ 100   3                                  PWM0_set(255);
+ 101   3                              }
+ 102   2                      /*PWM1_set液晶屏风扇 */
+ 103   2                      if(wds1>400) PWM1_set(100);                     //液晶屏高于40度，液晶屏风扇持续开启
+ 104   2                      if(wds1>500) {PWM1_set(1);Bp();delayS500ms();Bp();}  //如果液晶屏温度大于50度，则蜂鸣器响
+ 105   2          }
+ 106   1      }
+ 107          void keypro()
+ 108          {
+ 109   1                       if(K1==0)              //检测按键K1是否按下
+ 110   1                      {
+ 111   2                              if(high<1040&&high>=940){
+ 112   3                              high=(high+10);
+ 113   3                              SG90PRO();
+ 114   3                              vfd_display_4(high);
+ 115   3                              }else
+ 116   2                              high=1040; 
+ 117   2                      }
+C51 COMPILER V9.01   MAIN                                                                  12/10/2020 23:39:38 PAGE 3   
+
+ 118   1                       if(K2==0)              //检测按键K1是否按下
+ 119   1                      {
+ 120   2                              if(high>940&&high<=1040){
+ 121   3                          high=(high-10);
+ 122   3                              SG90PRO();
+ 123   3                              vfd_display_4(high);
+ 124   3                              }else 
+ 125   2                              high=940;
+ 126   2                      }
+ 127   1              sector_Erase(0x0000);
+ 128   1              Byte_write(0x0000,high/10);
+ 129   1      }
+ 130          void fin_result(unsigned int fin)        /*显示风扇调整值*/
+ 131          {
+ 132   1      unsigned char f,i,n;
+ 133   1                       f=fin/100;
+ 134   1                       i=fin%100/10;
+ 135   1                       n=fin%10;
+ 136   1                       
+ 137   1                       STB=0;
+ 138   1                       Write_PT6312(0xc6);//ADDRESS SETTING COMMANDS  ""
+ 139   1                       Write_PT6312(0);
+ 140   1                       STB=1;
+ 141   1                                      
+ 142   1                       STB=0;
+ 143   1                       Write_PT6312(0xc4);                //  设定地址
+ 144   1                       Write_PT6312(writeshu[f]);
+ 145   1                       STB=1;
+ 146   1                                      
+ 147   1                       STB=0;
+ 148   1                       Write_PT6312(0xc2);                //  设定地址
+ 149   1                       Write_PT6312(writeshu[i]);
+ 150   1                       STB=1;
+ 151   1      
+ 152   1                       STB=0;
+ 153   1                       Write_PT6312(0xc0);                //  设定地址
+ 154   1                       Write_PT6312(writeshu[n]);
+ 155   1                       STB=1;
+ 156   1      }
+ 157          unsigned int led_temp(unsigned int led) //led温度拆分
+ 158          {
+ 159   1                   unsigned char b,s,g;
+ 160   1                       b=led/100;
+ 161   1                       s=led%100/10;
+ 162   1                       g=led%10;
+ 163   1      
+ 164   1                   STB=0;
+ 165   1                       Write_PT6312(0xd2);                //  设定地址
+ 166   1                       Write_PT6312(writeshu[b]);
+ 167   1                       STB=1;
+ 168   1      
+ 169   1                       STB=0;
+ 170   1                       Write_PT6312(0xd0);                //  设定地址
+ 171   1                       Write_PT6312(writeshu[s]);
+ 172   1                       STB=1;
+ 173   1      
+ 174   1                       STB=0;
+ 175   1                       Write_PT6312(0xce);                //  设定地址
+ 176   1                       Write_PT6312(0x40);
+ 177   1                       STB=1;
+ 178   1                      
+ 179   1                       STB=0;
+C51 COMPILER V9.01   MAIN                                                                  12/10/2020 23:39:38 PAGE 4   
+
+ 180   1                       Write_PT6312(0xcc);                //  设定地址
+ 181   1                       Write_PT6312(writeshu[g]);
+ 182   1                       STB=1;
+ 183   1                       
+ 184   1                       return b*100+s*10+g;
+ 185   1      }
+ 186          unsigned int lcd_temp(unsigned int lcd)//lcd温度拆分
+ 187          {
+ 188   1                   unsigned char b,s,g;
+ 189   1                   STB=0;
+ 190   1                       b=lcd/100;
+ 191   1                       Write_PT6312(0xc6);                //  设定地址
+ 192   1                       Write_PT6312(writeshu[b]);
+ 193   1                       STB=1;
+ 194   1      
+ 195   1                       STB=0;
+ 196   1                       s=lcd%100/10;
+ 197   1                       Write_PT6312(0xc4);                //  设定地址
+ 198   1                       Write_PT6312(writeshu[s]);
+ 199   1                       STB=1;
+ 200   1      
+ 201   1                       STB=0;
+ 202   1                       Write_PT6312(0xc2);                //  设定地址
+ 203   1                       Write_PT6312(0x40);
+ 204   1                       STB=1;
+ 205   1                      
+ 206   1                       STB=0;
+ 207   1                       g=lcd%10;
+ 208   1                       Write_PT6312(0xc0);                //  设定地址
+ 209   1                       Write_PT6312(writeshu[g]);
+ 210   1                       STB=1;
+ 211   1      
+ 212   1                       return b*100+s*10+g;
+ 213   1      }
+ 214          
+ 215          void proir_data(){
+ 216   1      if(irpro_ok)
+ 217   1               {
+ 218   2                   TempData[0] = IRcord[0]/16;   //处理客户码
+ 219   2                   TempData[1] = IRcord[0]%16;
+ 220   2                   TempData[2] = IRcord[1]/16;   //处理客户码
+ 221   2                   TempData[3] = IRcord[1]%16;
+ 222   2                   TempData[4] = IRcord[2]/16;   //处理数据码
+ 223   2                   TempData[5] = IRcord[2]%16;
+ 224   2                   TempData[6] = IRcord[3]/16;   //处理数据反码
+ 225   2                   TempData[7] = IRcord[3]%16;
+ 226   2                   STB=0;
+ 227   2                       Write_PT6312(0xd2);                //  设定地址1
+ 228   2                       Write_PT6312(0xa9);
+ 229   2                       STB=1;
+ 230   2      
+ 231   2                       STB=0;
+ 232   2                       Write_PT6312(0xd0);                //  设定地址2
+ 233   2                       Write_PT6312(0xaf);
+ 234   2                       STB=1;
+ 235   2      
+ 236   2                       STB=0;
+ 237   2                       Write_PT6312(0xce);                //  设定地址3
+ 238   2                       Write_PT6312(0xaf);
+ 239   2                       STB=1;
+ 240   2      
+ 241   2                       STB=0;
+C51 COMPILER V9.01   MAIN                                                                  12/10/2020 23:39:38 PAGE 5   
+
+ 242   2                       Write_PT6312(0xcc);                //  设定地址4
+ 243   2                       Write_PT6312(0xb9);
+ 244   2                       STB=1;
+ 245   2      
+ 246   2                       STB=0;
+ 247   2                       Write_PT6312(0xca);                //  设定地址5
+ 248   2                       Write_PT6312(0);
+ 249   2                       STB=1;
+ 250   2      
+ 251   2                       STB=0;
+ 252   2                       Write_PT6312(0xc8);                //  设定地址6
+ 253   2                       Write_PT6312(0);
+ 254   2                       STB=1;
+ 255   2                       
+ 256   2                   if(IRcord[3]==0xea){
+ 257   3                                      if(high<1040&&high>=940){
+ 258   4                                      high = high+10;
+ 259   4                                      SG90PRO();
+ 260   4                                      vfd_display_4(high);
+ 261   4                                      }else 
+ 262   3                                      high=1040;
+ 263   3                                }                         
+ 264   2                   if(IRcord[3]==0xeb){
+ 265   3                                      if(high>940&&high<=1040){
+ 266   4                                      high=(high-10);
+ 267   4                                      SG90PRO();
+ 268   4                                      vfd_display_4(high);
+ 269   4                              }else 
+ 270   3                              high=940;
+ 271   3                        }
+ 272   2                 }
+ 273   1                sector_Erase(0x0000);
+ 274   1               Byte_write(0x0000,high/10);
+ 275   1              irpro_ok=0;//处理完成标志
+ 276   1      }
+ 277          void vfd_display_4(unsigned int four)//vfd后4位显示数字
+ 278          {
+ 279   1              STB=0;                                                                                  
+ 280   1              Write_PT6312(0xc6);                //  设定地址7
+ 281   1              Write_PT6312(writeshu[four/1000]);
+ 282   1              STB=1;
+ 283   1                                      
+ 284   1              STB=0;
+ 285   1              Write_PT6312(0xc4);                //  设定地址8
+ 286   1              Write_PT6312(writeshu[four%1000/100]);
+ 287   1              STB=1;
+ 288   1                                 
+ 289   1              STB=0;
+ 290   1              Write_PT6312(0xc2);                //  设定地址9
+ 291   1              Write_PT6312(writeshu[four%100/10]);
+ 292   1              STB=1;
+ 293   1                                   
+ 294   1              STB=0;
+ 295   1              Write_PT6312(0xc0);                //  设定地址10
+ 296   1              Write_PT6312(writeshu[four%10]);
+ 297   1              STB=1;
+ 298   1      
+ 299   1      }
+ 300          void Bp() //蜂鸣器
+ 301          {               
+ 302   1                      Beep=0;
+ 303   1                      delay(50000);           //开启蜂鸣延时
+C51 COMPILER V9.01   MAIN                                                                  12/10/2020 23:39:38 PAGE 6   
+
+ 304   1                      delay(50000);
+ 305   1                      Beep=1;
+ 306   1                      delay(50000);           //关闭蜂鸣延时
+ 307   1                      delay(50000);
+ 308   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2449    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     86      14
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      3    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
